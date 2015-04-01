@@ -7,7 +7,7 @@
 ;; URL: https://www.flycheck.org
 ;; Keywords: convenience languages tools
 ;; Version: 0.23-cvs
-;; Package-Requires: ((dash "2.4.0") (pkg-info "0.4") (let-alist "1.0.1") (cl-lib "0.3") (emacs "24.1"))
+;; Package-Requires: ((seq "1.3") (dash "2.4.0") (pkg-info "0.4") (let-alist "1.0.1") (cl-lib "0.3") (emacs "24.1"))
 
 ;; This file is not part of GNU Emacs.
 
@@ -49,6 +49,7 @@
 
 (require 'dash)
 
+(require 'seq)
 (require 'subr-x nil 'no-error)  ; Additional utilities, Emacs 24.4 and upwards
 (require 'tabulated-list)        ; To list errors
 (require 'easymenu)              ; Flycheck Mode menu definition
@@ -970,11 +971,11 @@ to a number and return it.  Otherwise return nil."
 
 (defun flycheck-string-list-p (obj)
   "Determine if OBJ is a list of strings."
-  (and (listp obj) (-all? #'stringp obj)))
+  (and (listp obj) (seq-every-p #'stringp obj)))
 
 (defun flycheck-symbol-list-p (obj)
   "Determine if OBJ is a list of symbols."
-  (and (listp obj) (-all? #'symbolp obj)))
+  (and (listp obj) (seq-every-p #'symbolp obj)))
 
 (defun flycheck-same-files-p (file-a file-b)
   "Determine whether FILE-A and FILE-B refer to the same file."
@@ -1084,7 +1085,7 @@ spliced into the resulting list."
          (lambda (item)
            (let ((result (funcall prepend-fn option item)))
              (cond
-              ((and (listp result) (-all? #'stringp result)) result)
+              ((and (listp result) (seq-every-p #'stringp result)) result)
               ((stringp result) (list result))
               (t (error "Invalid result type for option: %S" result)))))))
     (apply #'append (mapcar prepend items))))
@@ -2830,7 +2831,7 @@ otherwise."
 
 Return a list of all errors that are relevant for their
 corresponding buffer."
-  (-filter #'flycheck-relevant-error-p errors))
+  (seq-filter #'flycheck-relevant-error-p errors))
 
 
 ;;; Status reporting for the current buffer
@@ -3278,7 +3279,7 @@ Return the created overlay."
 
 (defun flycheck-filter-overlays (overlays)
   "Get all Flycheck overlays from OVERLAYS."
-  (-filter (lambda (o) (overlay-get o 'flycheck-overlay)) overlays))
+  (seq-filter (lambda (o) (overlay-get o 'flycheck-overlay)) overlays))
 
 (defun flycheck-overlays-at (pos)
   "Get all Flycheck overlays at POS."
@@ -4220,19 +4221,19 @@ are substituted within the body of cells!"
        (flycheck-prepend-with-option option-name (list value) prepend-fn)))
     (`(option-list ,option-name ,variable)
      (let ((value (symbol-value variable)))
-       (unless (and (listp value) (-all? #'stringp value))
+       (unless (and (listp value) (seq-every-p #'stringp value))
          (error "Value %S of %S for option %S is not a list of strings"
                 value variable option-name))
        (flycheck-prepend-with-option option-name value)))
     (`(option-list ,option-name ,variable ,prepend-fn)
      (let ((value (symbol-value variable)))
-       (unless (and (listp value) (-all? #'stringp value))
+       (unless (and (listp value) (seq-every-p #'stringp value))
          (error "Value %S of %S for option %S is not a list of strings"
                 value variable option-name))
        (flycheck-prepend-with-option option-name value prepend-fn)))
     (`(option-list ,option-name ,variable ,prepend-fn ,filter)
      (let ((value (delq nil (mapcar filter (symbol-value variable)))))
-       (unless (and (listp value) (-all? #'stringp value))
+       (unless (and (listp value) (seq-every-p #'stringp value))
          (error "Value %S of %S for option %S is not a list of strings"
                 value variable option-name))
        (flycheck-prepend-with-option option-name value prepend-fn)))
@@ -4242,7 +4243,7 @@ are substituted within the body of cells!"
     (`(eval ,form)
      (let ((result (eval form)))
        (cond
-        ((and (listp result) (-all? #'stringp result)) result)
+        ((and (listp result) (seq-every-p #'stringp result)) result)
         ((stringp result) (list result))
         (t (error "Invalid result from evaluation of %S: %S" form result)))))
     (_ (error "Unsupported argument %S" arg))))
@@ -4312,8 +4313,8 @@ symbols in the command."
   "Print additional documentation for a command CHECKER."
   (let ((executable (flycheck-checker-default-executable checker))
         (config-file-var (flycheck-checker-config-file-var checker))
-        (option-vars (-sort #'string<
-                            (flycheck-checker-option-vars checker))))
+        (option-vars (seq-sort #'string<
+                               (flycheck-checker-option-vars checker))))
     (princ "\n")
 
     (let ((doc-start (with-current-buffer standard-output (point-max))))
@@ -4749,8 +4750,8 @@ function `buffer-file-name'."
   (flycheck-error-with-buffer err
     (-when-let (filename (flycheck-error-filename err))
       (setq filename (expand-file-name filename))
-      (when (-any? (apply-partially #'flycheck-same-files-p filename)
-                   buffer-files)
+      (when (seq-some-p (apply-partially #'flycheck-same-files-p filename)
+                        buffer-files)
         (setq filename (buffer-file-name)))
       (setf (flycheck-error-filename err) filename)))
   err)
